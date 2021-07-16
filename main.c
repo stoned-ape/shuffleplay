@@ -102,6 +102,7 @@ char **getlist(int *len){
     return songs;   //return array
 }
 
+//stores the state of the program
 typedef struct{
     int current_song_pid; //points to an afplay process
     int paused;           //0 if playing, 1 if paused
@@ -112,6 +113,7 @@ typedef struct{
     pthread_cond_t cv1,cv2;
 }state;
 
+//I cant not use object programming
 void state_init(state *this){
     assert(this!=NULL);
     this->paused=0;
@@ -122,19 +124,20 @@ void state_init(state *this){
     PTHREAD(pthread_mutex_init(&this->mtx2,0));
     PTHREAD(pthread_cond_init(&this->cv2,0));
 }
-
+//just kill the current afplay process to end the song
 void state_end_song(state *this){
     assert(this!=NULL);
     SYSCALL(kill(this->current_song_pid,SIGINT));
     PTHREAD(pthread_cond_wait(&this->cv1,&this->mtx1)); //wait for the next title to be printed
     this->paused=0;
 }
-
+//play with SIGCONT
 void state_play(state *this){
     assert(this!=NULL);
     SYSCALL(kill(this->current_song_pid,SIGCONT));
     this->paused=0;
 }
+//pause with SIGSTOP
 void state_pause(state *this){
     assert(this!=NULL);
     SYSCALL(kill(this->current_song_pid,SIGSTOP));
@@ -212,10 +215,11 @@ int main(int argc,char **argv){
     printf("enter b to go back to the previous song \n");
     printf("enter r to restart the current song \n");
     
+    //these are for my own personal use
     char *spotify="/Users/apple1/sound/spotify/songs to yeet myself ofa building to";
     char *youtube="/Users/apple1/sound/ytmusic";
     
-    char *path="./songs";
+    char *path="./songs";  //play music in ./songs directory by default
     if(argc>1){
         if     (strcmp(argv[1],"-y")==0) path=youtube;
         else if(strcmp(argv[1],"-s")==0) path=spotify;
