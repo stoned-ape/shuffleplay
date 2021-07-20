@@ -9,6 +9,8 @@
 #include <signal.h>
 #include <pthread.h>
 #include <sys/types.h>
+#include <dirent.h>
+#include <fcntl.h>
 
 
 int ret; //used for storing and checking return values
@@ -38,7 +40,7 @@ if(ret!=0){ \
     exit(ret); \
 }
 
-//#define DEBUG
+#define DEBUG
 
 //this shuffles an array by repeatedly picking two random elements
 //and swapping them
@@ -65,10 +67,23 @@ char **getlist(int *len){
         SYSCALL(dup2(p[1],STDOUT_FILENO));    //redirect stdout into the pipe
         SYSCALL(execl("/bin/ls","ls",NULL));  //execute ls
     }
-    int bufsz=1024;
+    
+    int bufsz=2;
     char *buf=malloc(bufsz);
-    memset(buf,0,bufsz);
-    int n=SYSCALL(read(p[0],buf,bufsz)); //read output from ls
+    int n=SYSCALL(read(p[0],buf,bufsz));
+    n/=2;
+    while(bufsz==n*2){
+        printf("bruh\n");
+        int newbufsz=2*bufsz;
+        char *newbuf=malloc(newbufsz);
+        memcpy(newbuf,buf,bufsz);
+        free(buf);
+        buf=newbuf;
+        bufsz=newbufsz;
+        n=SYSCALL(read(p[0],buf+bufsz/2,bufsz/2));
+    }
+    n+=bufsz/2;
+ 
 #ifdef DEBUG
     printf("%s",buf);
 #endif
@@ -100,6 +115,38 @@ char **getlist(int *len){
 #endif
     *len=num_songs; //return array length
     return songs;   //return array
+}
+
+int numfiles(){
+    struct dirent *d;
+    DIR *dp=opendir(".");
+    int i=0;
+    while(readdir(dp)!=NULL) i++;
+    closedir(dp);
+    return i;
+}
+
+char **getlist2(int *len){
+    int num_songs=numfiles();
+    char **songs=malloc(num_songs*sizeof(char*));
+    struct dirent *d;
+    DIR *dp=opendir(".");
+    int i=0;
+    while((d=readdir(dp))!=NULL){
+        if(i>=num_songs) break;
+        int namelen=d->d_namlen+1;
+        char *name=malloc(namelen);
+        memcpy(name,d->d_name,namelen);
+        songs[i]=name;
+        i++;
+    }
+    closedir(dp);
+#ifdef DEBUG
+    printf("\n");
+    for(int j=0;j<num_songs;j++) printf("%s\n",songs[j]);
+#endif
+    *len=num_songs;
+    return songs;
 }
 
 //stores the state of the program
@@ -227,6 +274,7 @@ int main(int argc,char **argv){
     }
 
     SYSCALL(chdir(path));
+    
     int num_songs;
     char **songs=getlist(&num_songs); //get song list
     shuffle(songs,num_songs);         //shuffle the list
@@ -236,7 +284,7 @@ int main(int argc,char **argv){
     for(int i=0;i<num_songs;i++) printf("%s\n",songs[i]);
     printf("\n");
 #endif
-    
+
     state st;
     state_init(&st);
 
