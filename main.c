@@ -54,6 +54,27 @@ void shuffle(char **a,int n){
     }
 }
 
+//read the contents of a pipe into buffer and return it along with the length
+char *read_pipe(int pipe_fd,int *len){
+    int bufsz=2;
+    char *buf=malloc(bufsz);
+    int n=SYSCALL(read(pipe_fd,buf,bufsz)); //start to read the output of ls from pipe
+    n/=2;
+    while(bufsz==n*2){  //if this is true, we have filled the entire buffer and ...
+        int newbufsz=2*bufsz;
+        char *newbuf=malloc(newbufsz); //we need to allocate a new bigger one, then ...
+        memcpy(newbuf,buf,bufsz);      //copy the old one into the new one
+        free(buf);
+        buf=newbuf;
+        bufsz=newbufsz;
+        n=SYSCALL(read(pipe_fd,buf+bufsz/2,bufsz/2));  //first half is full so we fill the second half
+    }
+    *len=n+bufsz/2;  //return the length of the buffer
+    return buf; //return the buffer
+}
+
+
+
 //This function returns an array containing the names of all the files
 //in the current directory.  Then length array is return through the
 //len parameter.
@@ -68,22 +89,9 @@ char **getlist(int *len){
         SYSCALL(execl("/bin/ls","ls",NULL));  //execute ls
     }
     
-    int bufsz=2;
-    char *buf=malloc(bufsz);
-    int n=SYSCALL(read(p[0],buf,bufsz));
-    n/=2;
-    while(bufsz==n*2){
-        printf("bruh\n");
-        int newbufsz=2*bufsz;
-        char *newbuf=malloc(newbufsz);
-        memcpy(newbuf,buf,bufsz);
-        free(buf);
-        buf=newbuf;
-        bufsz=newbufsz;
-        n=SYSCALL(read(p[0],buf+bufsz/2,bufsz/2));
-    }
-    n+=bufsz/2;
- 
+    int n; //buffer size
+    char *buf=read_pipe(p[0],&n);
+    
 #ifdef DEBUG
     printf("%s",buf);
 #endif
